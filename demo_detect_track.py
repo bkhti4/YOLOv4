@@ -18,6 +18,7 @@ import cv2
 from tool.utils import *
 from tool.torch_utils import *
 from tool.darknet2pytorch import Darknet
+from tracker import *
 import argparse
 
 """hyper parameters"""
@@ -36,6 +37,8 @@ def detect_cv2_camera(cfgfile, weightfile, source, show):
     if use_cuda:
         m.cuda()
 
+    # Create tracker object
+    tracker = EuclideanDistTracker()
     cap = cv2.VideoCapture(source)
     times_infer, times_pipe = [], []
 
@@ -59,7 +62,7 @@ def detect_cv2_camera(cfgfile, weightfile, source, show):
             t0 = time.time()
             boxes = do_detect(m, sized, 0.4, 0.6, use_cuda)
 
-            result_img = plot_boxes_cv2(img, boxes[0], savename=None, class_names=class_names)
+            #result_img = plot_boxes_cv2(img, boxes[0], savename=None, class_names=class_names)
 
             t1 = time.time()
             t2 = time.time()
@@ -74,9 +77,15 @@ def detect_cv2_camera(cfgfile, weightfile, source, show):
             fps_infer = 1000 / (ms+0.00001)
             fps_pipe = 1000 / (sum(times_pipe)/len(times_pipe)*1000)
 
+            boxes_ids = tracker.update(boxes[0])
+            for box_id in boxes_ids:
+                x, y, w, h, id = box_id
+                cv2.putText(img, str(id), (x, y - 15), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 3)
+            
             # Stream results
             if show:
-                cv2.imshow(model_name, result_img)
+                cv2.imshow(model_name, img)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     cv2.destroyAllWindows()
                     break             # 1 millisecond
